@@ -1,6 +1,9 @@
 import hashlib
 import httpx
+import logging
 from typing import List, Dict
+
+_LOGGER = logging.getLogger(__name__)
 
 class ComwattClient:
     """Client asynchrone pour interagir avec l'API Comwatt Indepbox."""
@@ -9,7 +12,10 @@ class ComwattClient:
         self.base_url = "https://go.comwatt.com/api"
         self.username = username
         self.password = password
-        self.session = httpx.AsyncClient(follow_redirects=True)
+        self.session = httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=httpx.Timeout(10.0)  # Timeout global pour éviter les blocages
+        )
         self.is_authenticated = False
 
     async def authenticate(self):
@@ -19,19 +25,25 @@ class ComwattClient:
         ).hexdigest()
 
         url = f"{self.base_url}/v1/authent"
-        response = await self.session.post(url, json={
-            "username": self.username,
-            "password": encoded_password
-        })
+        try:
+            response = await self.session.post(url, json={
+                "username": self.username,
+                "password": encoded_password
+            })
+        except httpx.HTTPError as e:
+            _LOGGER.error("Erreur HTTP lors de l'authentification : %s", str(e))
+            raise
 
         if response.status_code != 200:
-            raise Exception(f"Échec de l'authentification : {response.status_code}")
+            _LOGGER.error("Échec de l'authentification (%s): %s", response.status_code, response.text)
+            raise ValueError("Échec de l'authentification")
 
-        # Vérification de la présence du cookie de session
         if "cwt_session" not in response.cookies:
-            raise Exception("Authentification échouée : cookie de session manquant")
+            _LOGGER.error("Authentification échouée : cookie de session manquant")
+            raise ValueError("Cookie de session manquant")
 
         self.is_authenticated = True
+        _LOGGER.debug("Authentification réussie pour l'utilisateur %s", self.username)
 
     async def get_devices(self) -> List[Dict]:
         """Retourne la liste des appareils enregistrés (pinces, capteurs, etc.)."""
@@ -39,10 +51,15 @@ class ComwattClient:
             await self.authenticate()
 
         url = f"{self.base_url}/devices"
-        response = await self.session.get(url)
+        try:
+            response = await self.session.get(url)
+        except httpx.HTTPError as e:
+            _LOGGER.error("Erreur HTTP lors de get_devices : %s", str(e))
+            raise
 
         if response.status_code != 200:
-            raise Exception(f"Erreur lors de la récupération des appareils : {response.status_code}")
+            _LOGGER.error("Erreur get_devices (%s): %s", response.status_code, response.text)
+            raise ValueError("Impossible de récupérer les appareils")
 
         return response.json()
 
@@ -52,14 +69,18 @@ class ComwattClient:
             await self.authenticate()
 
         url = f"{self.base_url}/device_stats"
-        response = await self.session.get(url)
+        try:
+            response = await self.session.get(url)
+        except httpx.HTTPError as e:
+            _LOGGER.error("Erreur HTTP lors de get_device_stats : %s", str(e))
+            raise
 
         if response.status_code != 200:
-            raise Exception(f"Erreur lors de la récupération des mesures : {response.status_code}")
+            _LOGGER.error("Erreur get_device_stats (%s): %s", response.status_code, response.text)
+            raise ValueError("Impossible de récupérer les statistiques")
 
         result = {}
         for stat in response.json():
-            # On suppose que chaque élément contient un device_id et une puissance (W)
             if "device_id" in stat and "w" in stat:
                 result[str(stat["device_id"])] = stat["w"]
 
@@ -71,10 +92,15 @@ class ComwattClient:
             await self.authenticate()
 
         url = f"{self.base_url}/network_stats"
-        response = await self.session.get(url)
+        try:
+            response = await self.session.get(url)
+        except httpx.HTTPError as e:
+            _LOGGER.error("Erreur HTTP lors de get_network_stats : %s", str(e))
+            raise
 
         if response.status_code != 200:
-            raise Exception(f"Erreur lors de la récupération des stats réseau : {response.status_code}")
+            _LOGGER.error("Erreur get_network_stats (%s): %s", response.status_code, response.text)
+            raise ValueError("Impossible de récupérer les stats réseau")
 
         return response.json()
 
