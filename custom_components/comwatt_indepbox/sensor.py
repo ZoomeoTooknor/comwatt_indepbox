@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import ENERGY_KILO_WATT_HOUR, POWER_WATT
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.const import UnitOfEnergy, UnitOfPower
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import DeviceInfo
 
@@ -47,18 +47,18 @@ class ComwattDeviceSensor(CoordinatorEntity, SensorEntity):
 
         # Energie si cumul (id=1), sinon puissance
         if device.get("measure_type_id") == 1:
-            self._attr_native_unit_of_measurement = ENERGY_KILO_WATT_HOUR
-            self._attr_device_class = "energy"
-            self._attr_state_class = "total_increasing"  # important pour l'énergie dashboard
+            self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+            self._attr_device_class = SensorDeviceClass.ENERGY
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
         else:
-            self._attr_native_unit_of_measurement = POWER_WATT
-            self._attr_device_class = "power"
-            self._attr_state_class = "measurement"
+            self._attr_native_unit_of_measurement = UnitOfPower.WATT
+            self._attr_device_class = SensorDeviceClass.POWER
+            self._attr_state_class = SensorStateClass.MEASUREMENT
 
     @property
     def device_info(self):
         return DeviceInfo(
-            identifiers={(DOMAIN, f"comwatt_box")},
+            identifiers={(DOMAIN, "comwatt_box")},
             name="Comwatt Indepbox",
             manufacturer="Comwatt",
             model="Indepbox",
