@@ -11,7 +11,7 @@ CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 
 # Temps d'actualisation des entités (en secondes)
-DEFAULT_SCAN_INTERVAL = 300
+DEFAULT_SCAN_INTERVAL = 60
 
 # Icône par défaut
 DEFAULT_ICON = "mdi:solar-power"

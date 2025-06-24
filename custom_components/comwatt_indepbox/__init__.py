@@ -24,6 +24,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         """Fonction appelée à chaque rafraîchissement."""
         try:
             await client.authenticate()
+            user = await client.get_authenticated_user()
+            indepboxes = await client.get_indepboxes(user["id"])
             devices = await client.get_devices()
             device_ids = [device["id"] for device in devices]
             stats = await client.get_device_stats(device_ids)
@@ -39,7 +41,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         _LOGGER,
         name="comwatt_indepbox",
         update_method=async_update_data,
-        update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
+        update_interval=timedelta(minutes=1),  # passage à la minute
     )
 
     await coordinator.async_config_entry_first_refresh()
@@ -48,7 +50,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         "coordinator": coordinator,
         "client": client,
     }
+    hass.data[DOMAIN][entry.entry_id]["config"] = {
+        "consumption": entry.options.get("consumption", []),
+        "production_self": entry.options.get("production_autoconsommation", []),
+        "production_export": entry.options.get("production_revente", []),
+    }
 
+    if entry.options:
+        hass.data[DOMAIN][entry.entry_id]["options"] = entry.options
+    
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True

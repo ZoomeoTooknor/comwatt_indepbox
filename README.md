@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ZoomeoTooknor/comwatt_indepbox/refs/heads/main/custom_components/comwatt_indepbox/logo.png?token=GHSAT0AAAAAADFXLMFSLOR5GKLU3EIQFBTK2C2TPUA" alt="Logo Comwatt Indepbox" width="150">
+</p>
+
 # Comwatt Indepbox
 
 [![Add Integration to Home Assistant](https://my.home-assistant.io/badges/integration.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=comwatt_indepbox)
@@ -37,6 +41,11 @@ Intégration personnalisée pour Home Assistant permettant de connecter une box 
 2. Clique sur **Ajouter une intégration**
 3. Choisis **Comwatt Indepbox**
 4. Renseigne ton identifiant et mot de passe Comwatt
+5.	Associe un rôle à chaque pince détectée :
+    •	Production (autoconsommation)
+    •	Production (revente totale)
+    •	Consommation
+Ces choix permettent à Home Assistant d’intégrer correctement chaque source dans le tableau de bord énergie.
 
 ## 🗂️ Structure du projet
 
