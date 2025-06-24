@@ -1,0 +1,17 @@
+{
+    "name": "Comwatt Indepbox",
+    "content_in_root": false,
+    "domains": [
+        "sensor"
+    ],
+    "country": "FR",
+    "iot_class": "cloud_polling",
+    "render_readme": true,
+    "filename": "comwatt_indepbox.zip",
+    "homeassistant": "2024.1.0",
+    "integration_type": "integration",
+    "codeowners": [
+        "@ZoomeoTooknor"
+    ],
+    "documentation": "https://github.com/ZoomeoTooknor/comwatt_indepbox"
+}
