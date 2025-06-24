@@ -25,7 +25,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         try:
             await client.authenticate()
             devices = await client.get_devices()
-            stats = await client.get_device_stats()
+            device_ids = [device["id"] for device in devices]
+            stats = await client.get_device_stats(device_ids)
             return {
                 "devices": devices,
                 "device_stats": stats
