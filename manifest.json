@@ -1,0 +1,15 @@
+{
+  "domain": "comwatt_indepbox",
+  "name": "Comwatt Indepbox",
+  "version": "1.0.0",
+  "documentation": "https://github.com/epihm/comwatt_indepbox",
+  "issue_tracker": "https://github.com/epihm/comwatt_indepbox/issues",
+  "dependencies": [],
+  "codeowners": ["@epihm"],
+  "config_flow": true,
+  "requirements": [
+    "httpx>=0.24.1"
+  ],
+  "iot_class": "cloud_polling",
+  "loggers": ["custom_components.comwatt_indepbox"]
+}

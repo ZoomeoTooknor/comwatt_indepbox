@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connexion à la box Comwatt Indepbox",
+        "description": "Saisissez vos identifiants de connexion Comwatt.",
+        "data": {
+          "username": "Adresse e-mail",
+          "password": "Mot de passe"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de se connecter à l'API Comwatt.",
+      "invalid_auth": "Identifiants invalides.",
+      "unknown": "Erreur inconnue."
+    },
+    "abort": {
+      "already_configured": "Cette box Comwatt est déjà configurée."
+    }
+  }
+}
