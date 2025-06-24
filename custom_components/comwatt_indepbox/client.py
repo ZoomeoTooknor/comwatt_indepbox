@@ -1,9 +1,8 @@
 import hashlib
 import httpx
-import logging
 from typing import List, Dict
+from datetime import datetime, timedelta
 
-_LOGGER = logging.getLogger(__name__)
 
 class ComwattClient:
     """Client asynchrone pour interagir avec l'API Comwatt Indepbox."""
@@ -12,96 +11,102 @@ class ComwattClient:
         self.base_url = "https://go.comwatt.com/api"
         self.username = username
         self.password = password
-        self.session = httpx.AsyncClient(
-            follow_redirects=True,
-            timeout=httpx.Timeout(10.0)  # Timeout global pour éviter les blocages
-        )
+        self.session = httpx.AsyncClient(follow_redirects=True)
         self.is_authenticated = False
+        self.owner_id = None
+        self.indepbox_id = None
 
     async def authenticate(self):
-        """Authentifie l'utilisateur et récupère le cookie de session."""
+        """Authentifie l'utilisateur, récupère les cookies, l'owner_id et l'indepbox_id."""
         encoded_password = hashlib.sha256(
             f"jbjaonfusor_{self.password}_4acuttbuik9".encode()
         ).hexdigest()
 
-        url = f"{self.base_url}/v1/authent"
-        try:
-            response = await self.session.post(url, json={
-                "username": self.username,
-                "password": encoded_password
-            })
-        except httpx.HTTPError as e:
-            _LOGGER.error("Erreur HTTP lors de l'authentification : %s", str(e))
-            raise
+        login_url = f"{self.base_url}/v1/authent"
+        login_response = await self.session.post(login_url, json={
+            "username": self.username,
+            "password": encoded_password
+        })
 
-        if response.status_code != 200:
-            _LOGGER.error("Échec de l'authentification (%s): %s", response.status_code, response.text)
-            raise ValueError("Échec de l'authentification")
+        if login_response.status_code != 200:
+            raise Exception(f"Échec de l'authentification : {login_response.status_code}")
 
-        if "cwt_session" not in response.cookies:
-            _LOGGER.error("Authentification échouée : cookie de session manquant")
-            raise ValueError("Cookie de session manquant")
+        if "cwt_session" not in login_response.cookies:
+            raise Exception("Authentification échouée : cookie de session manquant")
 
         self.is_authenticated = True
-        _LOGGER.debug("Authentification réussie pour l'utilisateur %s", self.username)
+
+        # Récupération de l'utilisateur authentifié
+        user_url = f"{self.base_url}/users/authenticated"
+        user_response = await self.session.get(user_url)
+        user_response.raise_for_status()
+        self.owner_id = user_response.json()["id"]
+
+        # Récupération de la box associée à l'utilisateur
+        box_url = f"{self.base_url}/indepboxes?ownerid={self.owner_id}"
+        box_response = await self.session.get(box_url)
+        box_response.raise_for_status()
+        boxes = box_response.json()["content"]
+
+        if not boxes:
+            raise Exception("Aucune box Comwatt associée à cet utilisateur")
+
+        self.indepbox_id = boxes[0]["id"]
 
     async def get_devices(self) -> List[Dict]:
-        """Retourne la liste des appareils enregistrés (pinces, capteurs, etc.)."""
+        """Retourne la liste des appareils de la box."""
         if not self.is_authenticated:
             await self.authenticate()
 
-        url = f"{self.base_url}/devices"
-        try:
-            response = await self.session.get(url)
-        except httpx.HTTPError as e:
-            _LOGGER.error("Erreur HTTP lors de get_devices : %s", str(e))
-            raise
-
-        if response.status_code != 200:
-            _LOGGER.error("Erreur get_devices (%s): %s", response.status_code, response.text)
-            raise ValueError("Impossible de récupérer les appareils")
-
+        url = f"{self.base_url}/devices?indepbox_id={self.indepbox_id}"
+        response = await self.session.get(url)
+        response.raise_for_status()
         return response.json()
 
-    async def get_device_stats(self) -> Dict[str, float]:
-        """Retourne les dernières mesures (en W) de tous les appareils."""
+    async def get_device_stats(self, device_ids: List[int]) -> Dict[str, float]:
+        """Retourne les dernières mesures (W) pour chaque device donné."""
         if not self.is_authenticated:
             await self.authenticate()
 
-        url = f"{self.base_url}/device_stats"
-        try:
+        now = datetime.now()
+        start = (now - timedelta(hours=12)).strftime("%Y-%m-%d %H:%M:%S")
+        end = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        results = {}
+        for device_id in device_ids:
+            url = (
+                f"{self.base_url}/aggregations/raw?device_id={device_id}"
+                f"&measure_kind=VIRTUAL_QUANTITY&measure_type_id=1"
+                f"&level=HOUR&start={start}&end={end}&mm="
+            )
             response = await self.session.get(url)
-        except httpx.HTTPError as e:
-            _LOGGER.error("Erreur HTTP lors de get_device_stats : %s", str(e))
-            raise
+            if response.status_code == 200 and response.json():
+                # On prend la dernière valeur disponible dans les mesures
+                measures = response.json()
+                if measures:
+                    last_value = measures[-1].get("value", 0.0)
+                    results[str(device_id)] = last_value
+            else:
+                results[str(device_id)] = 0.0
 
-        if response.status_code != 200:
-            _LOGGER.error("Erreur get_device_stats (%s): %s", response.status_code, response.text)
-            raise ValueError("Impossible de récupérer les statistiques")
-
-        result = {}
-        for stat in response.json():
-            if "device_id" in stat and "w" in stat:
-                result[str(stat["device_id"])] = stat["w"]
-
-        return result
+        return results
 
     async def get_network_stats(self) -> Dict:
-        """Retourne les données globales de production, consommation et réseau."""
+        """Retourne les stats réseau de la box Comwatt."""
         if not self.is_authenticated:
             await self.authenticate()
 
-        url = f"{self.base_url}/network_stats"
-        try:
-            response = await self.session.get(url)
-        except httpx.HTTPError as e:
-            _LOGGER.error("Erreur HTTP lors de get_network_stats : %s", str(e))
-            raise
+        now = datetime.now()
+        start = (now - timedelta(hours=12)).strftime("%Y-%m-%d %H:%M:%S")
+        end = now.strftime("%Y-%m-%d %H:%M:%S")
 
-        if response.status_code != 200:
-            _LOGGER.error("Erreur get_network_stats (%s): %s", response.status_code, response.text)
-            raise ValueError("Impossible de récupérer les stats réseau")
+        url = (
+            f"{self.base_url}/aggregations/networkstats?indepbox_id={self.indepbox_id}"
+            f"&level=HOUR&measure_kind=QUANTITY&start={start}&end={end}"
+        )
 
+        response = await self.session.get(url)
+        response.raise_for_status()
         return response.json()
 
     async def close(self):
