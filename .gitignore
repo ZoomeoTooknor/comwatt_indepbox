@@ -1,0 +1,11 @@
+
+# macOS
+.DS_Store
+
+# VSCode workspace
+comwatt_indepbox.code-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
