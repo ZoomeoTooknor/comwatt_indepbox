@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ZoomeoTooknor/comwatt_indepbox/refs/heads/main/custom_components/comwatt_indepbox/logo.png?token=GHSAT0AAAAAADFXLMFSLOR5GKLU3EIQFBTK2C2TPUA" alt="Logo Comwatt Indepbox" width="150">
+  <img src="https://github.com/ZoomeoTooknor/comwatt_indepbox/blob/main/custom_components/comwatt_indepbox/logo.png?raw=true" alt="Logo Comwatt Indepbox" width="150">
 </p>
 
 # Comwatt Indepbox
@@ -46,6 +46,102 @@ Intégration personnalisée pour Home Assistant permettant de connecter une box 
     •	Production (revente totale)
     •	Consommation
 Ces choix permettent à Home Assistant d’intégrer correctement chaque source dans le tableau de bord énergie.
+
+### ⚡ Ajout au tableau de bord Énergie
+
+Pour visualiser les données dans le tableau de bord Énergie de Home Assistant, il est nécessaire de créer des capteurs personnalisés qui agrègent les mesures issues des différentes pinces.
+
+1. Créer des capteurs de puissance (en Watts)
+Dans votre fichier templates.yaml, créez un capteur par type d’énergie à agréger (exemples : consommation globale, production solaire en autoconsommation, production solaire revendue).
+
+Voici un exemple générique :
+<
+# templates.yaml
+
+- sensor:
+    - name: "Consommation Globale W"
+      unique_id: consommation_globale_w
+      unit_of_measurement: "W"
+      state_class: measurement
+      device_class: power
+      state: >
+        {{ (
+          states('sensor.nom_capteur_consommation_1') | float(0) +
+          states('sensor.nom_capteur_consommation_2') | float(0)
+        ) | round(2) }}
+
+    - name: "Production Solaire Autoconsommation W"
+      unique_id: production_autoconso_w
+      unit_of_measurement: "W"
+      state_class: measurement
+      device_class: power
+      state: >
+        {{ (
+          states('sensor.nom_capteur_solaire_autoconso_1') | float(0) +
+          states('sensor.nom_capteur_solaire_autoconso_2') | float(0)
+        ) | round(2) }}
+
+    - name: "Production Solaire Revente W"
+      unique_id: production_revente_w
+      unit_of_measurement: "W"
+      state_class: measurement
+      device_class: power
+      state: >
+        {{ (
+          states('sensor.nom_capteur_solaire_revente_1') | float(0) +
+          states('sensor.nom_capteur_solaire_revente_2') | float(0)
+        ) | round(2) }}
+>
+💡 Remplace les noms sensor.nom_capteur_... par ceux créés automatiquement par l’intégration Comwatt Indepbox selon ta configuration.
+
+2. Créer les capteurs d’énergie (en kWh)
+
+Dans ton fichier sensors.yaml, convertis chaque capteur de puissance en énergie via la plateforme integration :
+<
+# sensors.yaml
+
+- platform: integration
+  source: sensor.consommation_globale_w
+  name: Consommation Globale kWh
+  unique_id: consommation_globale_kwh
+  unit_prefix: k
+  unit_time: h
+  round: 2
+  method: trapezoidal
+
+- platform: integration
+  source: sensor.production_autoconso_w
+  name: Production Autoconsommée kWh
+  unique_id: production_autoconso_kwh
+  unit_prefix: k
+  unit_time: h
+  round: 2
+  method: trapezoidal
+
+- platform: integration
+  source: sensor.production_revente_w
+  name: Production Revente kWh
+  unique_id: production_revente_kwh
+  unit_prefix: k
+  unit_time: h
+  round: 2
+  method: trapezoidal
+>
+
+3. Vérifier la configuration
+
+Assure-toi que ton fichier configuration.yaml contient bien :
+<
+template: !include templates.yaml
+sensor: !include sensors.yaml
+>
+
+4. Redémarrer Home Assistant
+
+Redémarre Home Assistant (ou recharge les modèles + capteurs si tu es à l’aise), puis va dans Paramètres > Tableau de bord Énergie pour ajouter :
+	•	une source de consommation (Consommation Globale kWh)
+	•	une ou plusieurs sources de production solaire (Production Autoconsommée kWh, Production Revente kWh)
+
 
 ## 🗂️ Structure du projet
 

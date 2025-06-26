@@ -1,7 +1,7 @@
 {
   "domain": "comwatt_indepbox",
   "name": "Comwatt Indepbox",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "documentation": "https://github.com/ZoomeoTooknor/comwatt_indepbox",
   "issue_tracker": "https://github.com/ZoomeoTooknor/comwatt_indepbox/issues",
   "dependencies": [],
