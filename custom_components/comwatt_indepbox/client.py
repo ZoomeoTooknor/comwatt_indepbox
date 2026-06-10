@@ -178,6 +178,8 @@ class ComwattClient:
         )
         response = await session.get(url)
         response.raise_for_status()
+
+        _LOGGER.warning("[COMWATT] networkstats body: %s", response.text[:500])
         return response.json()
 
     async def close(self):
