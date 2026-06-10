@@ -46,7 +46,7 @@ class ComwattConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class OptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry):
-        self.config_entry = config_entry
+        #self.config_entry = config_entry
         self.device_options = {}
 
     async def async_step_init(self, user_input=None):
