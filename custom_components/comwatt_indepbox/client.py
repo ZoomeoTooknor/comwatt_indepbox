@@ -11,7 +11,7 @@ class ComwattClient:
         self.base_url = "https://go.comwatt.com/api"
         self.username = username
         self.password = password
-        self.cookies = httpx.Cookies()  # Ajoute ceci
+        self.cookies = httpx.Cookies()
         self.session = httpx.AsyncClient(follow_redirects=True, cookies=self.cookies)
         self.is_authenticated = False
 
@@ -35,13 +35,11 @@ class ComwattClient:
 
         self.is_authenticated = True
 
-        # Récupération de l'utilisateur authentifié
         user_url = f"{self.base_url}/users/authenticated"
         user_response = await self.session.get(user_url)
         user_response.raise_for_status()
         self.owner_id = user_response.json()["id"]
 
-        # Récupération de la box associée à l'utilisateur
         box_url = f"{self.base_url}/indepboxes?ownerid={self.owner_id}"
         box_response = await self.session.get(box_url)
         box_response.raise_for_status()
@@ -53,7 +51,6 @@ class ComwattClient:
         self.indepbox_id = boxes[0]["id"]
 
     async def get_indepboxes(self, owner_id: int) -> List[Dict]:
-        """Récupère les Indepbox associées à un utilisateur."""
         if not self.is_authenticated:
             await self.authenticate()
 
@@ -64,9 +61,8 @@ class ComwattClient:
             raise Exception(f"Erreur récupération indepboxes : {response.status_code}")
 
         return response.json().get("content", [])
-        
+
     async def get_authenticated_user(self) -> Dict:
-        """Retourne les informations de l'utilisateur connecté (y compris son ID)."""
         if not self.is_authenticated:
             await self.authenticate()
 
@@ -77,9 +73,8 @@ class ComwattClient:
             raise Exception(f"Erreur lors de la récupération de l'utilisateur : {response.status_code}")
 
         return response.json()
-    
+
     async def get_devices(self) -> List[Dict]:
-        """Retourne la liste des appareils de la box."""
         if not self.is_authenticated:
             await self.authenticate()
 
@@ -89,40 +84,69 @@ class ComwattClient:
         return response.json()
 
     async def get_device_stats(self, device_ids: List[int]) -> Dict[str, float]:
-        """Retourne les dernières mesures (W) pour chaque device donné."""
+        """Retourne la puissance instantanée (W) pour chaque device via FLOW/MINUTE.
+
+        On interroge une fenêtre glissante de 3 minutes et on prend la dernière
+        mesure disponible. Cela donne une valeur quasi-instantanée (~1-2 min de
+        latence) au lieu de la moyenne horaire précédente (jusqu'à 60 min de retard).
+        """
         if not self.is_authenticated:
             await self.authenticate()
 
         now = datetime.now()
-        start = (now - timedelta(hours=12)).strftime("%Y-%m-%d %H:%M:%S")
+        start = (now - timedelta(minutes=3)).strftime("%Y-%m-%d %H:%M:%S")
         end = now.strftime("%Y-%m-%d %H:%M:%S")
 
         results = {}
         for device_id in device_ids:
             url = (
                 f"{self.base_url}/aggregations/raw?device_id={device_id}"
-                f"&measure_kind=VIRTUAL_QUANTITY&measure_type_id=1"
-                f"&level=HOUR&start={start}&end={end}&mm="
+                f"&measure_kind=FLOW&measure_type_id=1"
+                f"&level=MINUTE&start={start}&end={end}&mm=0"
             )
             response = await self.session.get(url)
-            if response.status_code == 200 and response.json():
-                # On prend la dernière valeur disponible dans les mesures
+            if response.status_code == 200:
                 measures = response.json()
                 if measures:
-                    print(f"[DEBUG] Measures for device {device_id}:", measures)
                     last_entry = measures[-1]
                     if isinstance(last_entry, dict):
                         last_value = last_entry.get("value", 0.0)
                     else:
                         last_value = float(last_entry)
                     results[str(device_id)] = last_value
+                else:
+                    # Aucune mesure dans la fenêtre : on élargit à 10 min en fallback
+                    results[str(device_id)] = await self._get_device_stat_fallback(device_id)
             else:
                 results[str(device_id)] = 0.0
 
         return results
 
+    async def _get_device_stat_fallback(self, device_id: int) -> float:
+        """Fallback : fenêtre de 10 min si aucune mesure dans les 3 dernières minutes.
+
+        Peut arriver la nuit (production = 0) ou lors d'une coupure réseau brève.
+        """
+        now = datetime.now()
+        start = (now - timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
+        end = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        url = (
+            f"{self.base_url}/aggregations/raw?device_id={device_id}"
+            f"&measure_kind=FLOW&measure_type_id=1"
+            f"&level=MINUTE&start={start}&end={end}&mm=0"
+        )
+        response = await self.session.get(url)
+        if response.status_code == 200:
+            measures = response.json()
+            if measures:
+                last_entry = measures[-1]
+                if isinstance(last_entry, dict):
+                    return last_entry.get("value", 0.0)
+                return float(last_entry)
+        return 0.0
+
     async def get_network_stats(self) -> Dict:
-        """Retourne les stats réseau de la box Comwatt."""
         if not self.is_authenticated:
             await self.authenticate()
 
@@ -139,20 +163,6 @@ class ComwattClient:
         response.raise_for_status()
         return response.json()
 
-    def get_device_stats_minute(self, device_id, start, end):
-        url = (f"{self.base_url}/aggregations/raw?"
-            f"device_id={device_id}&"
-            f"measure_kind=FLOW&"
-            f"measure_type_id=1&"
-            f"level=MINUTE&"
-            f"start={start}&end={end}&mm=0")
-
-        response = self.session.get(url)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            raise Exception(f"Error retrieving data: {response.status_code}")
-    
     async def close(self):
         """Ferme proprement la session HTTP."""
         await self.session.aclose()
